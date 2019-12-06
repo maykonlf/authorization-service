@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+package authorization.v1;
+
+option go_package = "authorization";
+
+import "google/protobuf/timestamp.proto";
+import "google/api/annotations.proto";
+
+service Authorization {
+    rpc CreatePolicy(PolicyRequest) returns (PolicyResponse) {
+        option(google.api.http) = {post: "/v1/policy" body: "*"};
+    }
+}
+
+message PolicyRequest {
+    string role = 1;
+    string tenant = 2;
+    string resource = 3;
+    string action = 4;
+}
+
+message PolicyResponse {
+    google.protobuf.Timestamp when = 1;
+}
