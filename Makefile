@@ -32,7 +32,7 @@ $(PROTOC_GEN_GO):
 	go get -u github.com/golang/protobuf/protoc-gen-go
 
 authorization.pb.go: $(PROTO_AUTHORIZATION_FILE_PATH) | $(PROTOC_GEN_GO) $(PROTOC)
-	protoc -I . -I $(GRPC_GATEWAY_LIBS) --grpc-gateway_out=logtostderr=true:. --go_out=. $(AUTHORIZATION_PROTO_FILE_PATH)
+	protoc -I . -I $(GRPC_GATEWAY_LIBS) --grpc-gateway_out=logtostderr=true:. --go_out=plugins=grpc:. $(AUTHORIZATION_PROTO_FILE_PATH)
 
 proto: authorization.pb.go
 
