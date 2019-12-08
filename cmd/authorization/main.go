@@ -4,48 +4,43 @@ import (
 	"context"
 	"github.com/casbin/casbin"
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
-	grpc2 "github.com/maykonlf/authorization-service/internal/server"
-	"github.com/maykonlf/authorization-service/proto/authorization/v1"
+	"github.com/maykonlf/authorization-service/internal/server"
+	v1 "github.com/maykonlf/authorization-service/pkg/api/v1"
+	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
-	"log"
-	"net"
+	"google.golang.org/grpc/credentials"
 	"net/http"
 	"strings"
 )
 
 func main() {
+	serverCert, err := credentials.NewServerTLSFromFile("server.crt", "server.key")
+	if err != nil {
+		log.Fatalln("failed to create server cert", err)
+	}
+
 	e := casbin.NewEnforcer("rbac_model.conf", "roles.csv")
 
-	grpcServer := grpc.NewServer()
-	authorization.RegisterAuthorizationServer(grpcServer, grpc2.NewAuthorizationService(e))
+	grpcServer := grpc.NewServer(grpc.Creds(serverCert))
+	v1.RegisterAuthorizationServer(grpcServer, server.NewAuthorizationService(e))
 
-	go func() {
-		lis, err := net.Listen("tcp", ":50000")
-		if err != nil {
-			panic(err)
-		}
-
-		err = grpcServer.Serve(lis)
-		if err != nil {
-			panic(err)
-		}
-	}()
-
-	conn, err := grpc.DialContext(
-		context.Background(),
-		"localhost:50000",
-		grpc.WithInsecure())
+	clientCert, err := credentials.NewClientTLSFromFile("server.crt", "")
 	if err != nil {
-		log.Fatalln("Failed to dial server:", err)
+		log.Fatalln("failed to create client cert", err)
+	}
+
+	conn, err := grpc.DialContext(context.Background(), "localhost:9000", grpc.WithTransportCredentials(clientCert))
+	if err != nil {
+		log.Fatalln("failed to dial gRPC server", err)
 	}
 
 	router := runtime.NewServeMux()
-	if err = authorization.RegisterAuthorizationHandler(context.Background(), router, conn); err != nil {
+	if err = v1.RegisterAuthorizationHandler(context.Background(), router, conn); err != nil {
 		log.Fatalln("Failed to register gateway:", err)
 	}
 
-	log.Println("listening on :9000")
-	log.Fatalln(http.ListenAndServe(":9000", httpGrpcRouter(grpcServer, router)))
+	log.Info("serving on port :9000")
+	log.Fatalln(http.ListenAndServeTLS(":9000", "server.crt", "server.key", httpGrpcRouter(grpcServer, router)))
 }
 
 func httpGrpcRouter(grpcServer *grpc.Server, httpHandler http.Handler) http.Handler {

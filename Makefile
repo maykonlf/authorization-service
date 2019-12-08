@@ -2,8 +2,8 @@ TEST?=./...
 GOFMT_FILES?=$$(find . -name '*.go' | grep -v vendor)
 PROTOC_GEN_GO := $(GOPATH)/bin/protoc-gen-go
 PROTOC := $(shell which protoc)
-GRPC_GATEWAY_LIBS := $(shell go list -m -f '{{.Dir}}' all | grep grpc-gateway)/third_party/googleapis/
-AUTHORIZATION_PROTO_FILE_PATH := proto/authorization/v1/authorization.proto
+GRPC_GATEWAY_PATH := $(shell go list -m -f '{{.Dir}}' all | grep 'github.com/grpc-ecosystem/grpc-gateway')
+GRPC_GOOGLE_APIS_PATH := $(GRPC_GATEWAY_PATH)/third_party/googleapis/
 
 default: test
 
@@ -25,15 +25,21 @@ cover: fmtcheck lint
 	go tool cover -html=coverage.out
 	rm coverage.out
 
-$(PROTOC_GEN_GO):
-	go get -u github.com/golang/protobuf/protoc-gen-go
+certs:
+	openssl genrsa -out server.key 2048
+ifdef cn
+	openssl req -new -x509 -sha256 -key server.key -out server.crt -subj "/CN=$(cn)"
+else
+	openssl req -new -x509 -sha256 -key server.key -out server.crt -subj "/CN=localhost"
+endif
 
 $(PROTOC_GEN_GO):
 	go get -u github.com/golang/protobuf/protoc-gen-go
 
-authorization.pb.go: $(PROTO_AUTHORIZATION_FILE_PATH) | $(PROTOC_GEN_GO) $(PROTOC)
-	protoc -I . -I $(GRPC_GATEWAY_LIBS) --grpc-gateway_out=logtostderr=true:. --go_out=plugins=grpc:. $(AUTHORIZATION_PROTO_FILE_PATH)
+$(PROTOC_GEN_GO):
+	go get -u github.com/golang/protobuf/protoc-gen-go
 
-proto: authorization.pb.go
+proto: $(PROTO_AUTHORIZATION_FILE_PATH) | $(PROTOC_GEN_GO) $(PROTOC)
+	protoc -I api/proto/v1 -I "$(GRPC_GOOGLE_APIS_PATH)" -I "$(GRPC_GATEWAY_PATH)" --go_out=plugins=grpc:pkg/api/v1/ --grpc-gateway_out=logtostderr=true:pkg/api/v1/ --swagger_out=logtostderr=true:api/swagger/v1/ authorization.proto
 
-.PHONY: default test cover fmt fmtcheck lint
+.PHONY: default test cover fmt fmtcheck lint proto certs

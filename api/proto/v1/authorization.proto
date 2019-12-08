@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package authorization.v1;
 
-option go_package = "authorization";
+option go_package = "v1";
 
 import "google/protobuf/timestamp.proto";
 import "google/api/annotations.proto";
